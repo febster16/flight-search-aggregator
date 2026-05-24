@@ -80,10 +80,10 @@ curl -X POST http://localhost:8000/flights/search \
   -d '{
     "origin": "CGK",
     "destination": "DPS",
-    "departureDate": "2025-12-15",
-    "returnDate": null,
+    "departure_date": "2025-12-15",
+    "return_date": null,
     "passengers": 1,
-    "cabinClass": "economy"
+    "cabin_class": "economy"
   }'
 ```
 
@@ -95,6 +95,6 @@ curl -X POST http://localhost:8000/flights/search \
 4. **Airport city lookup** — replace internal dictionary with a full library (e.g., `mmcloughlin/openflights`) for production coverage.
 5. **Go worker pool** — implement worker pool to better handle goroutines under high traffic.
 6. **Config-driven provider toggling** — load enabled providers from config YAML for enable/disable without code changes.
-7. **Caching layer** — cache provider responses to reduce redundant calls.
+7. **Caching layer** — cache or `single flight` provider responses based on filter to reduce redundant calls.
 8. **"Best value" scoring** — rank results by weighted combination of price and convenience.
 9. **Timeout handling** — add context deadline for provider calls to prevent unbounded waits.

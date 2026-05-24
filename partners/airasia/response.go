@@ -65,7 +65,7 @@ func (r Response) mapToSearchResponse() (*partners.SearchResponse, error) {
 			stops,
 			domain.NewPrice(f.PriceIDR, partners.CurrencyIDR),
 			f.Seats,
-			f.CabinClass,
+			partners.NormalizeCabinClass(f.CabinClass),
 			nil,
 			nil,
 			// TODO: The baggage_note field contains free-text

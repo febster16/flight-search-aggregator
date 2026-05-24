@@ -25,6 +25,9 @@ func (f *flight) Search(
 	ctx context.Context,
 	req *request.Search,
 ) (*response.Search, error) {
+	start := time.Now()
+
+	// TODO: Implement cache or single flight based on request filter.
 	searchReq := &partners.SearchRequest{
 		Origin:        req.Origin,
 		Destination:   req.Destination,
@@ -35,37 +38,71 @@ func (f *flight) Search(
 	}
 
 	var (
-		mu         sync.Mutex
-		wg         sync.WaitGroup
-		allFlights []domain.Flight
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		results []providerResult
 	)
 
 	// TODO: introduce a bounded worker pool for concurrency control
 	// under high traffic.
 	for _, provider := range f.providers {
 		wg.Add(1)
-		go searchFlights(ctx, searchReq, provider, &wg, &mu, &allFlights)
+		go func(p partners.FlightProvider) {
+			defer wg.Done()
+
+			result := searchProvider(ctx, searchReq, p)
+
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+		}(provider)
 	}
 
 	wg.Wait()
 
-	if len(allFlights) == 0 {
-		return &response.Search{Flights: []response.Flight{}}, nil
+	var (
+		allFlights         []domain.Flight
+		providersSucceeded int
+		providersFailed    int
+	)
+
+	for _, r := range results {
+		if r.success {
+			providersSucceeded++
+			allFlights = append(allFlights, r.flights...)
+		} else {
+			providersFailed++
+		}
 	}
 
-	return mapToSearchResponse(allFlights), nil
+	filtered := filterFlights(allFlights, searchReq)
+
+	flights := mapFlightsToResponse(filtered)
+
+	return &response.Search{
+		SearchCriteria: mapSearchCriteriaResponse(req),
+		Metadata: response.Metadata{
+			TotalResults:       len(flights),
+			ProvidersQueried:   len(f.providers),
+			ProvidersSucceeded: providersSucceeded,
+			ProvidersFailed:    providersFailed,
+			SearchTimeMs:       time.Since(start).Milliseconds(),
+			CacheHit:           false, // TODO: Implement cache.
+		},
+		Flights: flights,
+	}, nil
 }
 
-func searchFlights(
+type providerResult struct {
+	flights []domain.Flight
+	success bool
+}
+
+func searchProvider(
 	ctx context.Context,
 	req *partners.SearchRequest,
 	provider partners.FlightProvider,
-	wg *sync.WaitGroup,
-	mu *sync.Mutex,
-	allFlights *[]domain.Flight,
-) {
-	defer wg.Done()
-
+) providerResult {
 	var res *partners.SearchResponse
 
 	if err := utilities.Retry(
@@ -83,12 +120,11 @@ func searchFlights(
 		// TODO: probably would be better to send to Slack or structured logging.
 		log.Printf("provider search for {%s} failed: %v", provider.Name(), err)
 
-		return
+		return providerResult{success: false}
 	}
 
-	mu.Lock()
-
-	*allFlights = append(*allFlights, res.Flights...)
-
-	mu.Unlock()
+	return providerResult{
+		flights: res.Flights,
+		success: true,
+	}
 }

@@ -86,7 +86,7 @@ func (r Response) mapToSearchResponse() (*partners.SearchResponse, error) {
 			f.Stops,
 			domain.NewPrice(f.Price.Amount, f.Price.Currency),
 			f.AvailableSeats,
-			f.FareClass,
+			partners.NormalizeCabinClass(f.FareClass),
 			&aircraft,
 			f.Amenities,
 			domain.NewBaggage(

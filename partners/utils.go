@@ -5,6 +5,7 @@ import (
 	"math"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -95,4 +96,25 @@ func AirportCity(code string) string {
 	}
 
 	return code
+}
+
+// ref: https://en.wikipedia.org/wiki/Fare_basis_code
+var iataClassMap = map[string]string{
+	"Y": "economy",
+	"W": "premium_economy",
+	"J": "business",
+	"C": "business",
+	"F": "first",
+}
+
+// normalizeCabinClass converts a cabin class value to a consistent lowercase
+func NormalizeCabinClass(class string) string {
+	upper := strings.ToUpper(strings.TrimSpace(class))
+
+	// Check if mapping exist.
+	if mapped, ok := iataClassMap[upper]; ok {
+		return mapped
+	}
+
+	return strings.ToLower(strings.TrimSpace(class))
 }
