@@ -5,20 +5,20 @@ type Search struct {
 }
 
 type Flight struct {
-	ID             string    `json:"id"`
-	Provider       string    `json:"provider"`
-	Airline        Airline   `json:"airline"`
-	FlightNumber   string    `json:"flight_number"`
-	Departure      Departure `json:"departure"`
-	Arrival        Arrival   `json:"arrival"`
-	Duration       Duration  `json:"duration"`
-	Stops          int       `json:"stops"`
-	Price          Price     `json:"price"`
-	AvailableSeats int       `json:"available_seats"`
-	CabinClass     string    `json:"cabin_class"`
-	Aircraft       *string   `json:"aircraft,omitempty"`
-	Amenities      []string  `json:"amenities,omitempty"`
-	Baggage        Baggage   `json:"baggage"`
+	ID             string   `json:"id"`
+	Provider       string   `json:"provider"`
+	Airline        Airline  `json:"airline"`
+	FlightNumber   string   `json:"flight_number"`
+	Departure      Endpoint `json:"departure"`
+	Arrival        Endpoint `json:"arrival"`
+	Duration       Duration `json:"duration"`
+	Stops          int      `json:"stops"`
+	Price          Price    `json:"price"`
+	AvailableSeats int      `json:"available_seats"`
+	CabinClass     string   `json:"cabin_class"`
+	Aircraft       *string  `json:"aircraft,omitempty"`
+	Amenities      []string `json:"amenities,omitempty"`
+	Baggage        Baggage  `json:"baggage"`
 }
 
 type Airline struct {
@@ -26,14 +26,7 @@ type Airline struct {
 	Code string `json:"code"`
 }
 
-type Departure struct {
-	Airport   string `json:"airport"`
-	City      string `json:"city"`
-	Datetime  string `json:"datetime"`
-	Timestamp int64  `json:"timestamp"`
-}
-
-type Arrival struct {
+type Endpoint struct {
 	Airport   string `json:"airport"`
 	City      string `json:"city"`
 	Datetime  string `json:"datetime"`

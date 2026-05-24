@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 
 	"flight-search-aggregator/config"
+	"flight-search-aggregator/flight/controller"
 
 	"github.com/gorilla/mux"
 )
@@ -59,11 +60,10 @@ func NewHTTPServer(ctx context.Context, conf *config.Config) (*Server, error) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"status":  "healthy",
 			"service": conf.HTTP.Name,
-			"version": conf.HTTP.Version,
 		})
 	}).Methods(http.MethodGet)
 
-	// TODO: Register controllers here
+	controller.GetController(router)
 
 	return &Server{
 		httpServer: &http.Server{

@@ -1,4 +1,0 @@
-http:
-  name: "flight-search-aggregator"
-  port: 8000
-  version: "1.0.0"
