@@ -1,0 +1,12 @@
+# Build file
+main
+
+# Configuration
+config*.yml
+
+# IDE Configuration
+.vscode/
+.idea/
+
+# IDE Debugger
+cmd/http/__debug*
