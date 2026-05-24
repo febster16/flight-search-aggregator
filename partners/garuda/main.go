@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+func (*garudaProvider) Name() string {
+	return partners.ProviderGaruda
+}
+
 func (*garudaProvider) Search(
 	ctx context.Context,
 	req *partners.SearchRequest,

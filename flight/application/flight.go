@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"flight-search-aggregator/flight/domain"
 	"flight-search-aggregator/flight/request"
 	"flight-search-aggregator/flight/response"
 	"flight-search-aggregator/partners"
+	"flight-search-aggregator/utilities"
 )
 
 type flight struct {
@@ -19,7 +21,10 @@ type flight struct {
 	providers []partners.FlightProvider
 }
 
-func (f *flight) Search(ctx context.Context, req *request.Search) (*response.Search, error) {
+func (f *flight) Search(
+	ctx context.Context,
+	req *request.Search,
+) (*response.Search, error) {
 	searchReq := &partners.SearchRequest{
 		Origin:        req.Origin,
 		Destination:   req.Destination,
@@ -29,18 +34,20 @@ func (f *flight) Search(ctx context.Context, req *request.Search) (*response.Sea
 		CabinClass:    req.CabinClass,
 	}
 
-	var allFlights []domain.Flight
+	var (
+		mu         sync.Mutex
+		wg         sync.WaitGroup
+		allFlights []domain.Flight
+	)
 
+	// TODO: introduce a bounded worker pool for concurrency control
+	// under high traffic.
 	for _, provider := range f.providers {
-		res, err := provider.Search(ctx, searchReq)
-		if err != nil {
-			// Log and continue — don't fail the entire search if one provider errors.
-			log.Printf("[%s] provider search failed: %v", time.Now().Format(time.RFC3339), err)
-			continue
-		}
-
-		allFlights = append(allFlights, res.Flights...)
+		wg.Add(1)
+		go searchFlights(ctx, searchReq, provider, &wg, &mu, &allFlights)
 	}
+
+	wg.Wait()
 
 	if len(allFlights) == 0 {
 		return &response.Search{Flights: []response.Flight{}}, nil
@@ -49,56 +56,39 @@ func (f *flight) Search(ctx context.Context, req *request.Search) (*response.Sea
 	return mapToSearchResponse(allFlights), nil
 }
 
-func mapToSearchResponse(flights []domain.Flight) *response.Search {
-	result := &response.Search{
-		Flights: make([]response.Flight, 0, len(flights)),
+func searchFlights(
+	ctx context.Context,
+	req *partners.SearchRequest,
+	provider partners.FlightProvider,
+	wg *sync.WaitGroup,
+	mu *sync.Mutex,
+	allFlights *[]domain.Flight,
+) {
+	defer wg.Done()
+
+	var res *partners.SearchResponse
+
+	if err := utilities.Retry(
+		ctx, 3, 15*time.Millisecond, func(ctx context.Context) error {
+			var err error
+
+			if res, err = provider.Search(ctx, req); err != nil {
+				return fmt.Errorf("error provider search: %w", err)
+			}
+
+			return nil
+		},
+	); err != nil {
+		// Log and continue — don't fail the entire search if one provider errors.
+		// TODO: probably would be better to send to Slack or structured logging.
+		log.Printf("provider search for {%s} failed: %v", provider.Name(), err)
+
+		return
 	}
 
-	for _, f := range flights {
-		result.Flights = append(result.Flights, response.Flight{
-			ID:           f.ID(),
-			Provider:     f.Provider(),
-			Airline:      response.Airline{Name: f.Airline().Name(), Code: f.Airline().Code()},
-			FlightNumber: f.FlightNumber(),
-			Departure: response.Endpoint{
-				Airport:   f.Departure().Airport(),
-				City:      f.Departure().City(),
-				Datetime:  formatDatetime(f.Departure().Datetime()),
-				Timestamp: f.Departure().Timestamp(),
-			},
-			Arrival: response.Endpoint{
-				Airport:   f.Arrival().Airport(),
-				City:      f.Arrival().City(),
-				Datetime:  formatDatetime(f.Arrival().Datetime()),
-				Timestamp: f.Arrival().Timestamp(),
-			},
-			Duration: response.Duration{
-				TotalMinutes: f.Duration().TotalMinutes(),
-				Formatted:    f.Duration().Formatted(),
-			},
-			Stops: f.Stops(),
-			Price: response.Price{
-				Amount:   f.Price().Amount(),
-				Currency: f.Price().Currency(),
-			},
-			AvailableSeats: f.AvailableSeats(),
-			CabinClass:     f.CabinClass(),
-			Aircraft:       f.Aircraft(),
-			Amenities:      f.Amenities(),
-			Baggage: response.Baggage{
-				CarryOn: f.Baggage().CarryOn(),
-				Checked: f.Baggage().Checked(),
-			},
-		})
-	}
+	mu.Lock()
 
-	return result
-}
+	*allFlights = append(*allFlights, res.Flights...)
 
-func formatDatetime(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-
-	return fmt.Sprintf("%sT%s", t.Format("2006-01-02"), t.Format("15:04:05Z07:00"))
+	mu.Unlock()
 }

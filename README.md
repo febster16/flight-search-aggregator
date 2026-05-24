@@ -12,6 +12,7 @@ This application "queries" various airline providers (Garuda Indonesia, Lion Air
 - **Provider abstraction** — Each airline implements the `FlightProvider` interface. Adding a new provider requires only a new package and a config entry, clear separation, and isolated andimplementation details. ref: https://refactoring.guru/design-patterns/strategy
 - **POST HTTP method** - While GET is the standard for searching, the POST method is used for search operations when requests are too complex or sensitive for a URL. ref: https://stackoverflow.com/a/64470896
 - **Shared utilities** — Common parsing logic (time, duration, airport lookup) is extracted to `partners/utils.go` to avoid code duplication. ref: https://refactoring.guru/smells/shotgun-surgery
+- **Concurrency** - Flights are fetched concurrently using goroutines + `sync.WaitGroup`. Total search latency is bounded by the slowest provider (~400ms worst case) rather than the sum of all providers (if sync).
 
 ## Project Structure
 1. cmd -> entry point
@@ -89,12 +90,11 @@ curl -X POST http://localhost:8000/flights/search \
 ## Future Improvements / TODOs
 
 1. **FlightProvider injection using `map[string]partners.FlightProvider`** for named provider access, enabling per-provider retry policies and circuit breakers.
-2. **Search request validation** — enforce required fields and value constraints.
+2. **Search request validation** — enforce required fields and value constraints (e.g., `github.com/go-playground/validator`).
 3. **Baggage parsing** — AirAsia's free-text baggage notes need a more nuanced parser to extract structured carry-on/checked values.
 4. **Airport city lookup** — replace internal dictionary with a full library (e.g., `mmcloughlin/openflights`) for production coverage.
-5. **Response delay simulation** — add configurable artificial delays per provider.
-6. **AirAsia failure simulation** — implement 10% random failure rate with retry/backoff.
+5. **Go worker pool** — implement worker pool to better handle goroutines under high traffic.
+6. **Config-driven provider toggling** — load enabled providers from config YAML for enable/disable without code changes.
 7. **Caching layer** — cache provider responses to reduce redundant calls.
 8. **"Best value" scoring** — rank results by weighted combination of price and convenience.
-9. **Parallel provider queries with timeout handling**.
-10. **Support for round-trip and multi-city searches**.
+9. **Timeout handling** — add context deadline for provider calls to prevent unbounded waits.

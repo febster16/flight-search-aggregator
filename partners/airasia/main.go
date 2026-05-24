@@ -10,16 +10,23 @@ import (
 	"time"
 )
 
+func (*airasiaProvider) Name() string {
+	return partners.ProviderAirAsia
+}
+
 func (*airasiaProvider) Search(
 	ctx context.Context,
 	req *partners.SearchRequest,
 ) (
 	*partners.SearchResponse, error,
 ) {
-	// Simulate 50-150ms delay
-	// TODO: 90% success rate simulation
-	delayMs := rand.Intn(150-50+1) + 50
+	// Simulate 90% success rate
+	if rand.Intn(100) < 10 {
+		return nil, fmt.Errorf("airasia temporarily unavailable")
+	}
 
+	// Simulate 50-150ms delay
+	delayMs := rand.Intn(150-50+1) + 50
 	time.Sleep(time.Duration(delayMs) * time.Millisecond)
 
 	file, err := os.Open("partners/airasia/airasia_search_response.json")

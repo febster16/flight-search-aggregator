@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+func (*lionProvider) Name() string {
+	return partners.ProviderLion
+}
+
 func (*lionProvider) Search(
 	ctx context.Context,
 	req *partners.SearchRequest,

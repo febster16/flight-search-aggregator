@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+func (*batikProvider) Name() string {
+	return partners.ProviderBatik
+}
+
 func (*batikProvider) Search(
 	ctx context.Context,
 	req *partners.SearchRequest,
