@@ -77,6 +77,10 @@ func (f *flight) Search(
 
 	filtered := filterFlights(allFlights, searchReq)
 
+	filtered = applyAdvancedFilters(filtered, req)
+
+	filtered = sortFlights(filtered, req.SortBy)
+
 	flights := mapFlightsToResponse(filtered)
 
 	return &response.Search{

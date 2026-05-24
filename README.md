@@ -10,9 +10,9 @@ This application "queries" various airline providers (Garuda Indonesia, Lion Air
 
 - **Domain-driven design** — Bridging communication gaps through a shared "ubiquitous language" improving maintainability, independent modules, and building the codes/business logic around the domain.
 - **Provider abstraction** — Each airline implements the `FlightProvider` interface. Adding a new provider requires only a new package and a config entry, clear separation, and isolated andimplementation details. ref: https://refactoring.guru/design-patterns/strategy
+- **Concurrency** - Flights are fetched concurrently using goroutines + `sync.WaitGroup`. Total search latency is bounded by the slowest provider (~400ms worst case) rather than the sum of all providers (if sync).
 - **POST HTTP method** - While GET is the standard for searching, the POST method is used for search operations when requests are too complex or sensitive for a URL. ref: https://stackoverflow.com/a/64470896
 - **Shared utilities** — Common parsing logic (time, duration, airport lookup) is extracted to `partners/utils.go` to avoid code duplication. ref: https://refactoring.guru/smells/shotgun-surgery
-- **Concurrency** - Flights are fetched concurrently using goroutines + `sync.WaitGroup`. Total search latency is bounded by the slowest provider (~400ms worst case) rather than the sum of all providers (if sync).
 
 ## Project Structure
 1. cmd -> entry point
@@ -74,6 +74,7 @@ curl http://localhost:8000/health
 
 ### 2. Search Flights
 
+2.1. Based on requirements
 ```bash
 curl -X POST http://localhost:8000/flights/search \
   -H "Content-Type: application/json" \
@@ -84,6 +85,20 @@ curl -X POST http://localhost:8000/flights/search \
     "return_date": null,
     "passengers": 1,
     "cabin_class": "economy"
+  }'
+```
+
+2.2. With additional filters
+```bash
+curl -X POST http://localhost:8000/flights/search \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "origin": "CGK",
+    "destination": "DPS",
+    "passengers": 2,
+    "min_price": 800000,
+    "max_price": 1000000,
+    "sort_by": "departure_asc"
   }'
 ```
 

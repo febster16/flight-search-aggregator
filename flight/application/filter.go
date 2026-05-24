@@ -1,14 +1,16 @@
 package application
 
 import (
+	"sort"
 	"strings"
 	"time"
 
 	"flight-search-aggregator/flight/domain"
+	"flight-search-aggregator/flight/request"
 	"flight-search-aggregator/partners"
 )
 
-// filterFlights applies the search criteria to the aggregated flight results.
+// filterFlights applies the core search criteria to the flight results.
 // It filters by origin, destination, departure date, passenger count (based on
 // available seats), and cabin class.
 func filterFlights(flights []domain.Flight, req *partners.SearchRequest) []domain.Flight {
@@ -45,7 +47,69 @@ func filterFlights(flights []domain.Flight, req *partners.SearchRequest) []domai
 	return filtered
 }
 
-// matchesOrigin checks if the flight departs from the requested origin airport.
+// applyAdvancedFilters applies additional filters: price range, stops, airlines, duration.
+func applyAdvancedFilters(flights []domain.Flight, req *request.Search) []domain.Flight {
+	if len(flights) == 0 {
+		return flights
+	}
+
+	var filtered []domain.Flight
+
+	for _, f := range flights {
+		if !matchesPriceRange(f, req.MinPrice, req.MaxPrice) {
+			continue
+		}
+
+		if !matchesMaxStops(f, req.MaxStops) {
+			continue
+		}
+
+		if !matchesAirlines(f, req.Airlines) {
+			continue
+		}
+
+		if !matchesMaxDuration(f, req.MaxDuration) {
+			continue
+		}
+
+		filtered = append(filtered, f)
+	}
+
+	return filtered
+}
+
+// Supported values: "price_asc", "price_desc", "duration_asc", "duration_desc",
+// "departure_asc", "departure_desc", "arrival_asc", "arrival_desc".
+// Defaults to price_asc.
+func sortFlights(flights []domain.Flight, sortBy string) []domain.Flight {
+	if len(flights) <= 1 {
+		return flights
+	}
+
+	sort.SliceStable(flights, func(i, j int) bool {
+		switch sortBy {
+		case "price_desc":
+			return flights[i].Price().Amount() > flights[j].Price().Amount()
+		case "duration_asc":
+			return flights[i].Duration().TotalMinutes() < flights[j].Duration().TotalMinutes()
+		case "duration_desc":
+			return flights[i].Duration().TotalMinutes() > flights[j].Duration().TotalMinutes()
+		case "departure_asc":
+			return flights[i].Departure().Datetime().Before(flights[j].Departure().Datetime())
+		case "departure_desc":
+			return flights[i].Departure().Datetime().After(flights[j].Departure().Datetime())
+		case "arrival_asc":
+			return flights[i].Arrival().Datetime().Before(flights[j].Arrival().Datetime())
+		case "arrival_desc":
+			return flights[i].Arrival().Datetime().After(flights[j].Arrival().Datetime())
+		default:
+			return flights[i].Price().Amount() < flights[j].Price().Amount()
+		}
+	})
+
+	return flights
+}
+
 func matchesOrigin(f domain.Flight, origin string) bool {
 	if origin == "" {
 		return true
@@ -54,7 +118,6 @@ func matchesOrigin(f domain.Flight, origin string) bool {
 	return strings.EqualFold(f.Departure().Airport(), origin)
 }
 
-// matchesDestination checks if the flight arrives at the requested destination airport.
 func matchesDestination(f domain.Flight, destination string) bool {
 	if destination == "" {
 		return true
@@ -63,8 +126,6 @@ func matchesDestination(f domain.Flight, destination string) bool {
 	return strings.EqualFold(f.Arrival().Airport(), destination)
 }
 
-// matchesDepartureDate checks if the flight departs on the requested date.
-// Compares date portion only (YYYY-MM-DD), ignoring time-of-day.
 func matchesDepartureDate(f domain.Flight, departureDate string) bool {
 	if departureDate == "" {
 		return true
@@ -83,8 +144,6 @@ func matchesDepartureDate(f domain.Flight, departureDate string) bool {
 		flightDate.Day() == requestedDate.Day()
 }
 
-// matchesPassengers checks if the flight has enough available seats for the
-// requested number of passengers.
 func matchesPassengers(f domain.Flight, passengers int) bool {
 	if passengers <= 0 {
 		return true
@@ -99,4 +158,47 @@ func matchesCabinClass(f domain.Flight, cabinClass string) bool {
 	}
 
 	return f.CabinClass() == cabinClass
+}
+
+func matchesPriceRange(f domain.Flight, minPrice, maxPrice *int) bool {
+	if minPrice != nil && f.Price().Amount() < *minPrice {
+		return false
+	}
+
+	if maxPrice != nil && f.Price().Amount() > *maxPrice {
+		return false
+	}
+
+	return true
+}
+
+func matchesMaxStops(f domain.Flight, maxStops *int) bool {
+	if maxStops == nil {
+		return true
+	}
+
+	return f.Stops() <= *maxStops
+}
+
+// Matches against airline code (e.g., "GA", "QZ") case-insensitively.
+func matchesAirlines(f domain.Flight, airlines []string) bool {
+	if len(airlines) == 0 {
+		return true
+	}
+
+	for _, code := range airlines {
+		if strings.EqualFold(f.Airline().Code(), code) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func matchesMaxDuration(f domain.Flight, maxDuration *int) bool {
+	if maxDuration == nil {
+		return true
+	}
+
+	return f.Duration().TotalMinutes() <= *maxDuration
 }
